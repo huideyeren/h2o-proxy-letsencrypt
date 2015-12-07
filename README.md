@@ -1,7 +1,7 @@
 h2o-proxy-letsencrypt
 =====================
 
-A automated h2o reverse proxy for docker containers.
+A automated h2o reverse proxy with letsencrypt for docker containers.
 
 DESCRIPTION
 -----------
