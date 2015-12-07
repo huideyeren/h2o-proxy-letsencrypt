@@ -1,0 +1,36 @@
+#!/bin/bash
+
+if [ -z "${EMAIL}" ]; then
+    echo "env value of EMAIL is not found."
+    exit 1
+fi
+
+if [ "x${AGREEMENT}" != "xyes" ]; then
+    echo "you must agree terms of services by letsencrypt."
+    exit 1
+fi
+
+{{ range $host, $containers := groupByMulti $ "Env.VIRTUAL_HOST" "," }}
+{{ if (ne $host "") }}
+
+data_dir="/data/acme/{{ $host }}"
+
+[ -d "${data_dir}" ] || mkdir -p "${data_dir}"
+cd "${data_dir}"
+
+docker-gen  -only-exposed \
+            -notify "/usr/local/share/h2o/start_server --restart --port 0.0.0.0:80 --port 0.0.0.0:443 --pid-file=/var/run/h2o/h2o.pid --status-file=/var/run/h2o/h2o_status" \
+            /opt/app/h2o.tmpl /etc/h2o/h2o.conf
+
+letsencrypt certonly \
+    --webroot --webroot-path="${data_dir}" \
+    --email "${EMAIL}" \
+    --domain "{{ $host }}" \
+    --agree-tos \
+    --renew-by-default && 
+        docker-gen  -only-exposed \
+                    -notify "/usr/local/share/h2o/start_server --restart --port 0.0.0.0:80 --port 0.0.0.0:443 --pid-file=/var/run/h2o/h2o.pid --status-file=/var/run/h2o/h2o_status" \
+                    /opt/app/h2o.tmpl /etc/h2o/h2o.conf
+
+{{ end }}
+{{ end }}
