@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+set -e -u -o pipefail
+
+PORT="--port 0.0.0.0:80 --port 0.0.0.0:443"
+PID_FILE="--pid-file=/var/run/h2o/h2o.pid"
+STATUS_FILE="--status-file=/var/run/h2o/h2o_status"
+SERVER_STARTER="/usr/local/share/h2o/start_server"
+
+case "${1:-}" in
+  bootstrap)
+    docker-gen -only-exposed /opt/app/templates/updater.bash  /opt/app/updater
+    bash /opt/app/updater
+    docker-gen -only-exposed /opt/app/templates/h2o.conf      /etc/h2o.conf
+
+    cd /opt/app
+    exec shoreman Procfile
+    ;;
+  start)
+    exec $SERVER_STARTER $PORT $PID_FILE $STATUS_FILE \
+      -- h2o -c /etc/h2o.conf
+    ;;
+  reload)
+    exec $SERVER_STARTER --restart $PORT $PID_FILE $STATUS_FILE
+    ;;
+  watch)
+    exec docker-gen  -watch \
+                -only-exposed \
+                -notify "/opt/app/run update" \
+                /opt/app/templates/updater.bash /opt/app/updater
+    ;;
+  update)
+    exec bash /opt/app/updater
+    ;;
+  generate)
+    exec docker-gen -only-exposed \
+                    -notify "/opt/app/run reload" \
+                    /opt/app/templates/h2o.conf /etc/h2o.conf
+    ;;
+esac

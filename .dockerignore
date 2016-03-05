@@ -1,3 +1,6 @@
-Makefile
-
 .git
+.dockerignore
+*.un~
+
+Makefile
+Dockerfile
