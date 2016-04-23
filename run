@@ -1,40 +1,48 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 set -e -u -o pipefail
 
-PORT="--port 0.0.0.0:80 --port 0.0.0.0:443"
-PID_FILE="--pid-file=/var/run/h2o/h2o.pid"
-STATUS_FILE="--status-file=/var/run/h2o/h2o_status"
-SERVER_STARTER="/usr/local/share/h2o/start_server"
+H2O_PORT="--port 0.0.0.0:80 --port 0.0.0.0:443"
+
+if [ ! -z "${ACME_TEST:-}" ]; then
+  H2O_PORT="${H2O_PORT} --port 0.0.0.0:5002 --port 0.0.0.0:5001"
+fi
+
+H2O_PID="--pid-file=/opt/app/h2o.pid"
+H2O_STATUS="--status-file=/opt/app/h2o.status"
+
+STARTER="perl /usr/share/h2o/start_server"
+RUNNER="sh /opt/app/run"
+
+TPL_LE="/opt/app/templates/le.sh /opt/app/le.sh"
+TPL_H2O="/opt/app/templates/h2o.conf /opt/app/h2o.conf"
+
+cd /opt/app
 
 case "${1:-}" in
   bootstrap)
-    docker-gen -only-exposed /opt/app/templates/updater.bash  /opt/app/updater
-    bash /opt/app/updater
-    docker-gen -only-exposed /opt/app/templates/h2o.conf      /etc/h2o.conf
-
-    cd /opt/app
-    exec shoreman Procfile
+    docker-gen -only-exposed $TPL_LE
+    docker-gen -only-exposed $TPL_H2O
+    exec forego start -r 
     ;;
   start)
-    exec $SERVER_STARTER $PORT $PID_FILE $STATUS_FILE \
-      -- h2o -c /etc/h2o.conf
+    exec $STARTER $H2O_PORT $H2O_PID $H2O_STATUS -- h2o -c /opt/app/h2o.conf
     ;;
-  reload)
-    exec $SERVER_STARTER --restart $PORT $PID_FILE $STATUS_FILE
+  restart)
+    exec $STARTER --restart $H2O_PORT $H2O_PID $H2O_STATUS
     ;;
   watch)
-    exec docker-gen  -watch \
-                -only-exposed \
-                -notify "/opt/app/run update" \
-                /opt/app/templates/updater.bash /opt/app/updater
+    exec docker-gen -watch -only-exposed -notify "${RUNNER} update" $TPL_LE
     ;;
   update)
-    exec bash /opt/app/updater
+    exec sh /opt/app/le.sh
     ;;
   generate)
-    exec docker-gen -only-exposed \
-                    -notify "/opt/app/run reload" \
-                    /opt/app/templates/h2o.conf /etc/h2o.conf
+    exec docker-gen -only-exposed -notify "${RUNNER} restart" $TPL_H2O
+    ;;
+  cron)
+    sh /opt/app/le.sh
+    exec devcron /opt/app/crontab
     ;;
 esac
+

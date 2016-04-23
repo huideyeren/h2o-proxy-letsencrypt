@@ -1,23 +1,24 @@
 NAME 			:= h2o-proxy-letsencrypt
 CONTAINER := nyarla/$(NAME)
-CF_EMAIL 	:= 
-CF_KEY 		:=
 
 email     := 
 agreement := 
-docker    := sudo docker
-port      := --net=host -p 80:80 -p 443:443
+
+docker    := docker
+port      := --net=container:boulder 
 socket    := -v /var/run/docker.sock:/tmp/docker.sock:ro
-mount     := -v /opt/docker/$(NAME):/opt/data
-env       := -e EMAIL=$(email) -e AGREEMENT=$(agreement) 
-dns   		:= -e CF_EMAIL=$(CF_EMAIL) -e CF_KEY=$(CF_KEY)
 
-args      := $(port) $(socket) $(mount) $(env) $(dns)
+devserver := --server http://127.0.0.1:4000/directory
+testflags := --no-verify-ssl --tls-sni-01-port 5001 --http-01-port 5002 --register-unsafely-without-email --debug -vvvvvvv
+test      := -e EXTRA_ARGS="$(devserver) $(testflags)" -e ACME_TEST=1
 
-all:
-	@echo ':)'
+env       := -e EMAIL=$(email) -e AGREEMENT=$(agreement) $(test)
+args      := $(port) $(socket) $(env)
 
-.PHONY: build run debug start stop clean cleanup-containers
+
+all: build
+
+.PHONY: build run debug start stop clean
 
 build:
 	$(docker) build --rm -t $(CONTAINER) .
@@ -26,7 +27,7 @@ run:
 	$(docker) run --name "$(NAME)" -d $(args) $(CONTAINER):latest
 
 debug:
-	$(docker) run --name "$(NAME)" -it --entrypoint=/bin/bash $(args) $(CONTAINER):latest
+	$(docker) run --name "$(NAME)" -it --entrypoint=/bin/sh $(args) $(CONTAINER):latest
 
 start:
 	$(docker) start $(NAME)
@@ -36,8 +37,4 @@ stop:
 
 clean:
 	$(docker) rm $(NAME)
-
-cleanup-containers:
-	$(docker) ps -a -q -f "status=exited" | xargs --no-run-if-empty docker rm -v
-	$(docker) images -q -f "dangling=true" 	| xargs --no-run-if-empty docker rmi
 

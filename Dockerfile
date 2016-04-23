@@ -1,80 +1,38 @@
-FROM lkwg82/h2o-http2-server
+FROM alpine:edge
 MAINTAINER Naoki OKAMURA <nyarla@thotep.net>
 
-ENV SHOREMAN_URL    https://raw.githubusercontent.com/chrismytton/shoreman/master/shoreman.sh
-ENV LETSENCRYPT_URL https://raw.githubusercontent.com/lukas2511/letsencrypt.sh/master/letsencrypt.sh
-ENV DOCKER_GEN_URL  https://github.com/jwilder/docker-gen/releases/download/0.7.0/docker-gen-alpine-linux-amd64-0.7.0.tar.gz
-ENV CLOUDFLARE_URL  https://raw.githubusercontent.com/kappataumu/letsencrypt-cloudflare-hook/master/hook.py
+ENV DOCKERGEN_BINARY_URL https://github.com/jwilder/docker-gen/releases/download/0.7.0/docker-gen-alpine-linux-amd64-0.7.0.tar.gz
+ENV FOREGO_GO_URL        github.com/ddollar/forego
 
-RUN apk update && apk upgrade \
-  # Installing dependences for letsencrypt \
-  && apk add -U \
-    bash \
-    curl \
-    grep \
-    libffi \
-    python \
-    py-cffi \
-    py-cryptography \
-    py-enum34 \
-    py-idna \
-    py-ipaddress \
-    py-ndg_httpsclient \
-    py-asn1 \
-    py-cparser \
-    py-openssl \
-    py-requests \
-    py-six \
-    # listing of installed packages after installed dependences \
-    && grep ^P /lib/apk/db/installed | sed -e 's/^P//g' | sort >/tmp/deps \
-  # Installing build dependences for letsencrypt \
-  && apk add -U \
-    build-base \
-    diffutils \
-    py-pip \
-    python-dev \
-    tar \
-    # listing of installed packages after installed build dependences \
-    && grep ^P /lib/apk/db/installed | sed -e 's/^P//g' | sort >/tmp/build \
-  # Installing letsencrypt.sh and cloudflare hook \
-  && curl -L -o /usr/local/bin/letsencrypt $LETSENCRYPT_URL \
-    && chmod +x /usr/local/bin/letsencrypt \
-  && curl -L -o /usr/local/bin/letsencrypt-cloudflare $CLOUDFLARE_URL \
-    && chmod +x /usr/local/bin/letsencrypt-cloudflare \
-  && pip install --upgrade pip \
-  && pip install -U dnspython future tld wheel \
-  # Installing forego and docker-gen \
-  && curl -L -o /usr/local/bin/shoreman $SHOREMAN_URL \
-    && chmod +x /usr/local/bin/shoreman \
-  && curl -L $DOCKER_GEN_URL | tar -C /usr/local/bin -zx \
-    && chmod + /usr/local/bin/docker-gen \
-  # Uninstall unnecessary packages \
-  && diff /tmp/deps /tmp/build | grep -e '^+[^+]' | sed -e 's/+//g' | xargs -n1 apk del 
+ENV GOPATH /opt/go
 
-RUN mkdir -p  /etc/h2o \
-              /var/run/h2o \
-              /var/log/h2o \
-              /opt/app \
-              /opt/data \
-              /opt/web
+RUN  sh -c '[ -d /opt/go    ] || mkdir -p /opt/go' \
+  && sh -c '[ -d /opt/app   ] || mkdir -p /opt/app' \
+  && sh -c '[ -d /opt/data  ] || mkdir -p /opt/data'
 
-COPY . /opt/app/
-RUN chmod +x /opt/app/run 
-WORKDIR /opt/app
+RUN  sh -c 'echo http://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories' \
+  && apk update \
+  && apk upgrade \
+  && apk add -U h2o letsencrypt go git bzr mercurial py-pip curl bash \
+  && sh -c 'curl -L "$DOCKERGEN_BINARY_URL" | tar -C /usr/bin -xz && chmod +x /usr/bin/docker-gen' \
+  && sh -c 'go get -u -v $FOREGO_GO_URL && mv /opt/go/bin/forego /usr/bin/ && chmod +x /usr/bin/forego' \
+  && sh -c 'pip install devcron' \
+  && rm -rf $GOPATH \
+  && apk del -U go git bzr mercurial curl \
+  && rm -rf /var/cache/apk/* \
+  && mkdir -p /opt/app \
+  && mkdir -p /opt/data
 
 ENV DOCKER_HOST unix:///tmp/docker.sock
 
-ARG EMAIL
-ENV EMAIL ${EMAIL:-}
+COPY templates /opt/app/templates
+COPY Procfile  /opt/app/Procfile
+COPY run       /opt/app/run
+COPY crontab   /opt/app/crontab
+RUN chmod +x   /opt/app/run
 
-ARG AGREEMENT
-ENV AGREEMENT ${AGREEMENT:-no}
+WORKDIR /opt/app
 
-ARG CF_EMAIL 
-ENV CF_EMAIL ${CF_EMAIL:-$EMAIL}
+ENTRYPOINT ["/bin/sh", "/opt/app/run"]
+CMD ["bootstrap"]
 
-ARG CF_KEY 
-ENV CF_KEY ${CF_KEY:-}
-
-ENTRYPOINT [ "/opt/app/run" ]
-CMD [ "bootstrap" ]
