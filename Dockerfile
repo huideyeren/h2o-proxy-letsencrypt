@@ -19,9 +19,7 @@ RUN  sh -c 'echo http://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/r
   && sh -c 'pip install devcron' \
   && rm -rf $GOPATH \
   && apk del -U go git bzr mercurial curl \
-  && rm -rf /var/cache/apk/* \
-  && mkdir -p /opt/app \
-  && mkdir -p /opt/data
+  && rm -rf /var/cache/apk/*
 
 ENV DOCKER_HOST unix:///tmp/docker.sock
 
@@ -33,6 +31,7 @@ RUN chmod +x   /opt/app/run
 
 WORKDIR /opt/app
 
+EXPOSE 80 443
 ENTRYPOINT ["/bin/sh", "/opt/app/run"]
 CMD ["bootstrap"]
 
