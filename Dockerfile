@@ -13,12 +13,12 @@ RUN  sh -c '[ -d /opt/go    ] || mkdir -p /opt/go' \
 RUN  sh -c 'echo http://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories' \
   && apk update \
   && apk upgrade \
-  && apk add -U h2o letsencrypt go git bzr mercurial py-pip curl bash \
+  && apk add -U h2o certbot go git bzr mercurial py-pip curl bash musl-dev \
   && sh -c 'curl -L "$DOCKERGEN_BINARY_URL" | tar -C /usr/bin -xz && chmod +x /usr/bin/docker-gen' \
   && sh -c 'go get -u -v $FOREGO_GO_URL && mv /opt/go/bin/forego /usr/bin/ && chmod +x /usr/bin/forego' \
   && sh -c 'pip install devcron' \
   && rm -rf $GOPATH \
-  && apk del -U go git bzr mercurial curl \
+  && apk del -U go git bzr mercurial curl musl-dev \
   && rm -rf /var/cache/apk/*
 
 ENV DOCKER_HOST unix:///tmp/docker.sock

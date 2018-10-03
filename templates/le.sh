@@ -16,7 +16,7 @@ fi
 {{ if (ne $host "") }}
 [ -d "/opt/data/{{ $host }}" ] || mkdir -p "/opt/data/{{ $host }}"
 
-letsencrypt certonly \
+certbot certonly \
   --webroot \
   --webroot-path "/opt/data/{{ $host }}" \
   --email $EMAIL \
